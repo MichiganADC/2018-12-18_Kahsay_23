@@ -12,6 +12,7 @@ output:
 
 ```{r}
 library(dplyr)
+library(lubridate)
 library(knitr)
 library(kableExtra)
 ```
@@ -24,7 +25,7 @@ source("~/Desktop/config.R")
 ```
 
 ```{r}
-# Helper function for collapse IVP/FVP/TVP field values
+# Helper function for collapsing IVP/FVP/TVP field values
 ## Uses rlang non-standard evalution
 collapse_ift_cols <- function(df, col_i) {
   col_i_enquo <- enquo(col_i) # col : expr => quosure
@@ -227,7 +228,7 @@ json_u3 <- rc_api_get(uri    = REDCAP_API_URI,
                       token  = REDCAP_API_TOKEN_UDS3,
                       fields = fields_u3,
                       raw    = TRUE)
-df_u3 <- jsonlite::fromJSON(json_u3) %>% as_tibble()
+df_u3 <- jsonlite::fromJSON(json_u3) %>% as_tibble() %>% na_if("")
 ```
 
 ### MiNDSet Registry
@@ -236,8 +237,54 @@ json_ms <- rc_api_get(uri    = REDCAP_API_URI,
                       token  = REDCAP_API_TOKEN_MINDSET,
                       fields = fields_ms,
                       raw    = TRUE)
-df_ms <- jsonlite::fromJSON(json_ms) %>% as_tibble()
+df_ms <- jsonlite::fromJSON(json_ms) %>% as_tibble() %>% na_if("")
 ```
+
+
+# Transform Data
+
+## Clean Data - Eliminate Blank Dates
+
+### UDS 3
+```{r}
+df_u3 <- df_u3 %>% 
+  filter(!is.na(form_date))
+```
+
+### MiNDSet Registry
+```{r}
+df_ms <- df_ms %>% 
+  filter(!is.na(exam_date))
+```
+
+## Clean Data - Date Types
+
+### UDS 3
+```{r}
+df_u3 <- df_u3 %>% 
+  mutate(form_date = as_date(form_date))
+```
+
+### MiNDSet Registry
+```{r}
+df_ms <- df_ms %>% 
+  mutate(exam_date = as_date(exam_date))
+```
+
+## Clean Data - Arrange by ID, Visit Date
+
+### UDS 3
+```{r}
+df_u3 <- df_u3 %>% 
+  arrange(ptid, form_date)
+```
+
+### MiNDSet Registry
+```{r}
+df_ms <- df_ms %>% 
+  arrange(subject_id, exam_date)
+```
+
 
 ## Save Raw Data As CSV
 
@@ -249,20 +296,6 @@ readr::write_csv(df_u3, "df_u3.csv", na = "")
 ### MiNDSet
 ```{r}
 readr::write_csv(df_ms, "df_ms.csv", na = "")
-```
-
-# Transform Data
-
-## Clean Data
-
-### UDS 3
-```{r}
-
-```
-
-### MiNDSet Registry
-```{r}
-
 ```
 
 
@@ -283,10 +316,83 @@ ift_fields_collapsible <- c("sex", "maristat",
 for (field in ift_fields_collapsible) {
   df_u3_collapsed <- collapse_ift_cols(df_u3_collapsed, !!field)
 }
+```
 
-readr::write_csv(df_u3_collapsed, "df_u3_collapsed.csv", na = "")
+## Convert UDS Form D1 Data to UDS Diagnosis (`uds_dx`)
+
+### UDS 3
+```{r}
+df_u3_collapsed_dx <- df_u3_collapsed %>% 
+  mutate(uds_dx = case_when(
+    normcog == 1  ~ 'NL',
+    mciamem == 1  ~ 'MCI',
+    mciaplus == 1 ~ 'MCI',
+    mcinon1 == 1  ~ 'MCI',
+    mcinon2 == 1  ~ 'MCI',
+    impnomci == 1 ~ 'CogImp',
+    alzdis == 1 & alzdisif == 1  ~ 'AD',
+    lbdis == 1 & lbdif == 1      ~ 'LBD',
+    msa == 1 & msaif == 1        ~ 'Other',
+    cvd == 1 & cvdif == 1        ~ 'Other',
+    esstrem == 1 & esstreif == 1 ~ 'Other',
+    downs == 1 & downsif == 1    ~ 'Other',
+    hunt == 1 & huntif == 1      ~ 'Other',
+    prion == 1 & prionif == 1    ~ 'Other',
+    brninj == 1 & brninjif == 1  ~ 'Other',
+    hyceph == 1 & hycephif == 1  ~ 'Other',
+    epilep == 1 & epilepif == 1  ~ 'Other',
+    neop == 1 & neopif == 1      ~ 'Other',
+    othcog == 1 & othcogif == 1  ~ 'Other',
+    TRUE ~ NA_character_
+  ))
+```
+
+## Derive Age at Visit Date
+ 
+### UDS 3
+```{r}
+df_u3_collapsed_dx_age <- df_u3_collapsed_dx %>% 
+  mutate(age_exact = as.period(interval(start = dob, end = form_date), 
+                         unit = "years"),
+         age = as.period(interval(dob, form_date),
+                         unit = "years")$year)
 ```
 
 
+## Left Join: UDS 3 + MiNDSet Registry
+
+The MiNDSet Registry data has the participants' counties, so we have to a quick left join.
+
+### UDS 3 + MiNDSet Registry
+```{r}
+df_u3_ms_collapse_dx_age <-
+ FuzzyDateJoin::outer_left(x = df_u3_collapsed_dx_age,
+                           y = df_ms,
+                           x_id_col = "ptid", 
+                           y_id_col = "subject_id",
+                           x_date_col = "form_date",
+                           y_date_col = "exam_date",
+                           x_intvl_less = 365L,
+                           x_intvl_more = 365L,
+                           keep_y_id = TRUE)
+```
+
+### Reorder Columns
+```{r}
+df_u3_ms_collapse_dx_age <- df_u3_ms_collapse_dx_age %>% 
+  select(ptid, form_date, age, age_exact, uds_dx,
+         sex, race, educ, maristat, handed, county,
+         mocatots, everything()) %>% 
+  select(-redcap_event_name_x, -redcap_event_name_y, 
+         -dob, -subject_id, -exam_date)
+```
+
 
 # Write Data
+
+```{r}
+readr::write_csv(df_u3_ms_collapse_dx_age,
+                 "df_u3_ms_collapse_dx_age.csv",
+                 na = "")
+```
+
