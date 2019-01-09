@@ -1,0 +1,292 @@
+---
+title: "Data Request: 2018-12-18_Kaysay_23"
+output: 
+  html_notebook:
+    theme: cerulean
+    highlight: zenburn
+---
+
+# Setup
+
+## Load Useful Libraries
+
+```{r}
+library(dplyr)
+library(knitr)
+library(kableExtra)
+```
+
+## Load Useful Variables
+
+```{r}
+# Mostly REDCap API tokens
+source("~/Desktop/config.R")
+```
+
+```{r}
+# Helper function for collapse IVP/FVP/TVP field values
+## Uses rlang non-standard evalution
+collapse_ift_cols <- function(df, col_i) {
+  col_i_enquo <- enquo(col_i) # col : expr => quosure
+  
+  col_i_quoname <- quo_name(col_i_enquo)          # col_i : quosure => string
+  col_f_quoname <- paste0("fu_", col_i_quoname)   # col_f : string => string
+  col_t_quoname <- paste0("tele_", col_i_quoname) # col_t : string => string
+  
+  col_f_enquo <- enquo(col_f_quoname) # col_f : string => quosure
+  col_t_enquo <- enquo(col_t_quoname) # col_t : string => quosure
+  
+  # IVP, FVP (fu_), and TVP (tele_) columns are in df
+  if (!is.null(df[[col_i_quoname]]) &
+      !is.null(df[[col_f_quoname]]) &
+      !is.null(df[[col_t_quoname]])) {
+    df %>%
+      mutate(!!col_i_enquo := coalesce(df[[col_i_quoname]],
+                                       df[[col_f_quoname]],
+                                       df[[col_t_quoname]])) %>%
+      select(-!!col_f_enquo, -!!col_t_enquo)
+  } 
+  # IVP and FVP (fu_) columns are in df
+  else if (!is.null(df[[col_i_quoname]]) &
+           !is.null(df[[col_f_quoname]]) &
+            is.null(df[[col_t_quoname]])) {
+    df %>%
+      mutate(!!col_i_enquo := coalesce(df[[col_i_quoname]],
+                                       df[[col_f_quoname]])) %>%
+      select(-!!col_f_enquo)
+  } 
+  # IVP and TVP (tele_) columns are in df
+  else if (!is.null(df[[col_i_quoname]]) &
+            is.null(df[[col_f_quoname]]) &
+           !is.null(df[[col_t_quoname]])) {
+    df %>%
+      mutate(!!col_i_enquo := coalesce(df[[col_i_quoname]],
+                                       df[[col_t_quoname]])) %>%
+      select(-!!col_t_enquo)
+  }
+}
+```
+
+
+# Extract Data
+
+## Set Appropriate Fields
+
+### UDS 3
+```{r}
+# Form Header
+fields_u3_raw_header <- 
+  c(
+    "ptid"          # header
+    , "dob"         # header; to derive visit date age
+    , "form_date"   # header; to derive visit date age
+  )
+
+# Form IVP A1
+fields_u3_raw_ivp_a1 <-
+  c(
+    "sex"         # ivp_a1
+    , "race"        # ivp_a1
+    , "handed"      # ivp_a1
+    , "educ"        # ivp_a1
+    , "maristat"    # ivp_a1
+  )
+
+# Form IVP C2
+fields_u3_raw_ivp_c2 <-
+  c(
+    "mocatots"    # ivp_c2; 1f. MOCA TOTAL RAW SCORE - UNCORRECTED
+  )
+
+# Form IVP D1
+fields_u3_raw_ivp_d1 <-
+  c(
+    ## Normal cognition
+    "normcog"     # ivp_d1; 2. Does the subject have normal cognition?
+    ## Dementia
+    , "demented"    # ivp_d1; 3. Does the subject meet criteria for dementia?
+    , "amndem"      # ivp_d1; 4a. Amnestic multidomain dementia syndrome
+    , "pca"         # ivp_d1; 4b. Posterior cortical atrophy syndrome
+    , "ppasyn"      # ivp_d1; 4c. Primary progressive aphasia (PPA) syndrome
+    , "ftdsyn"      # ivp_d1; 4d. Behavioral variant FTD syndrome
+    , "lbdsyn"      # ivp_d1; 4e. Lewy body dementia syndrome
+    , "namndem"     # ivp_d1; 4f. Non-amnestic multidomain dementia
+    , "mciamem"     # ivp_d1; 5a. Amnestic MCI, single domain (aMCI SD)
+    , "mciaplus"    # ivp_d1; 5b. Amnestic MCI, multiple domains (aMCI MD)
+    , "mcinon1"     # ivp_d1; 5c. Non-amnestic MCI, single domain (naMCI SD)
+    , "mcinon2"     # ivp_d1; 5d. Non-amnestic MCI, multiple domains (naMCI MD)
+    , "impnomci"    # ivp_d1; 5e. Cognitively impaired, not MCI
+    ## Dementia etiology
+    , "alzdis"      # ivp_d1; 11. Alzheimer's disease
+    , "alzdisif"
+    , "lbdis"       # ivp_d1; 12. Lewy body disease
+    , "lbdif"
+    , "msa"         # ivp_d1; 13. Multiple system atrophy
+    , "msaif"
+    , "cvd"         # ivp_d1; 15. Vascular Brain injury
+    , "cvdif"
+    , "esstrem"     # ivp_d1; 16. Essential tremor
+    , "esstreif"
+    , "downs"       # ivp_d1; 17. Down syndrom
+    , "downsif"
+    , "hunt"        # ivp_d1; 18. Huntington's disease
+    , "huntif"
+    , "prion"       # ivp_d1; 19. Prion disease
+    , "prionif"
+    , "brninj"      # ivp_d1; 20. Traumatic brain injury
+    , "brninjif"
+    , "hyceph"      # ivp_d1; 21. Normal-pressure hydrocephalus
+    , "hycephif"
+    , "epilep"      # ivp_d1; 22. Epilepsy
+    , "epilepif"
+    , "neop"        # ivp_d1; 23. CNS neoplasm
+    , "neopif"
+    , "hiv"         # ivp_d1; 24. Human immunodeficiency virus
+    , "hivif"
+    , "othcog"      # ivp_d1; 25. Cognitive impairment due to other not listed
+    , "othcogif"
+    , "dep"         # ivp_d1; 26. Active depression
+    , "depif"
+    , "bipoldx"     # ivp_d1; 27. Bipolar disorder
+    , "bipoldif"
+    , "schizop"     # ivp_d1; 28. Schizophrenia or other psychosis
+    , "schizoif"
+    , "anxiet"      # ivp_d1; 29. Anxiety disorder
+    , "anxietif"
+    , "delir"       # ivp_d1; 30. Delirium
+    , "delirif"
+    , "ptsddx"      # ivp_d1; 31. Post-traumatic stress disorder (PTSD)
+    , "ptsddxif"
+    , "othpsy"      # ivp_d1; 32. Other psychiatric disease
+    , "othpsyif"
+    , "alcdem"      # ivp_d1; 33. Cognitive impairment due to alcohol abuse
+    , "alcdemif"
+    , "impsub"      # ivp_d1; 34. Cognitive imp. due to other substance abuse
+    , "impsubif"
+    , "dysill"      # ivp_d1; 35. Cognitive impairment due to systemic disease
+    , "dysillif"
+    , "meds"        # ivp_d1; 36. Cognitive impairment due to medications
+    , "medsif"
+    , "cogoth"      # ivp_d1; 37. Cognitive impairment NOS
+    , "cogothif"
+    , "cogoth2"     # ivp_d1; 38. Cognitive impairment NOS
+    , "cogoth2f"
+    , "cogoth3"     # ivp_d1; 39. Cognitive impairment NOS
+    , "cogoth3f"
+  )
+
+# Form FVP A1
+fields_u3_raw_fvp_a1 <-
+  c(
+    "fu_sex"      # fvp_a1
+    , "fu_maristat" # fvp_a1
+  )
+
+# Form TVP A1
+fields_u3_raw_tvp_a1 <-
+  c(
+    "tele_sex"    # tvp_a1
+    , "tele_maristat" # tvp_a1
+  )
+
+# Append `fu_` and `tele_` to appropriate fields
+fields_u3_raw <- c(fields_u3_raw_header
+                   , fields_u3_raw_ivp_a1
+                   , fields_u3_raw_fvp_a1
+                   , fields_u3_raw_tvp_a1
+                   , fields_u3_raw_ivp_c2
+                   , fields_u3_raw_ivp_d1
+                   , paste0("fu_", fields_u3_raw_ivp_c2)
+                   , paste0("fu_", fields_u3_raw_ivp_d1)
+                   , paste0("tele_", fields_u3_raw_ivp_d1))
+
+
+# Collapse fields for REDCap API request
+fields_u3 <- fields_u3_raw %>% paste(collapse = ",")
+```
+
+### MiNDSet Registry
+```{r}
+fields_ms_raw <- 
+  c(
+    "subject_id"   # registration_form
+    , "exam_date" # medical_visit_form
+    , "county"     # patient_demographic_entry
+  )
+# Collapse fields for REDCap API request
+fields_ms <- fields_ms_raw %>% paste(collapse = ",")
+```
+
+## Fetch Data via REDCap API
+
+JSON => data.frame => tibble
+
+### UDS 3
+```{r}
+json_u3 <- rc_api_get(uri    = REDCAP_API_URI,
+                      token  = REDCAP_API_TOKEN_UDS3,
+                      fields = fields_u3,
+                      raw    = TRUE)
+df_u3 <- jsonlite::fromJSON(json_u3) %>% as_tibble()
+```
+
+### MiNDSet Registry
+```{r}
+json_ms <- rc_api_get(uri    = REDCAP_API_URI,
+                      token  = REDCAP_API_TOKEN_MINDSET,
+                      fields = fields_ms,
+                      raw    = TRUE)
+df_ms <- jsonlite::fromJSON(json_ms) %>% as_tibble()
+```
+
+## Save Raw Data As CSV
+
+### UDS 3
+```{r}
+readr::write_csv(df_u3, "df_u3.csv", na = "")
+```
+
+### MiNDSet
+```{r}
+readr::write_csv(df_ms, "df_ms.csv", na = "")
+```
+
+# Transform Data
+
+## Clean Data
+
+### UDS 3
+```{r}
+
+```
+
+### MiNDSet Registry
+```{r}
+
+```
+
+
+## Collapse IVP, FVP, TVP Columns
+
+Given columns "bar", "fu_bar", and "tele_bar", we will collapse all the values from those three columns into one column with the base name "bar".
+
+```{r}
+# Copy the UDS 3 data frame
+df_u3_collapsed <- df_u3
+
+# Define which fields have "fu_" and "tele_" counterparts
+ift_fields_collapsible <- c("sex", "maristat", 
+                            fields_u3_raw_ivp_c2,
+                            fields_u3_raw_ivp_d1)
+
+# Loop over each collapsible field, and do the collapsing
+for (field in ift_fields_collapsible) {
+  df_u3_collapsed <- collapse_ift_cols(df_u3_collapsed, !!field)
+}
+
+readr::write_csv(df_u3_collapsed, "df_u3_collapsed.csv", na = "")
+```
+
+
+
+# Write Data
