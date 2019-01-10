@@ -13,8 +13,8 @@ output:
 ```{r}
 library(dplyr)
 library(lubridate)
+library(rlang)
 library(knitr)
-library(kableExtra)
 ```
 
 ## Load Useful Variables
@@ -26,7 +26,7 @@ source("~/Desktop/config.R")
 
 ```{r}
 # Helper function for collapsing IVP/FVP/TVP field values
-## Uses rlang non-standard evalution
+## Uses rlang non-standard evalution (NSE)
 collapse_ift_cols <- function(df, col_i) {
   col_i_enquo <- enquo(col_i) # col : expr => quosure
   
@@ -176,6 +176,20 @@ fields_u3_raw_ivp_d1 <-
     , "cogoth3f"
   )
 
+# Form Ipad Tool Box
+fields_u3_raw_ipad_tb <- 
+  c(
+    "date"                     # admin date
+    , "tb_cardsortrawscore"    # TB CardSort RawScore
+    , "tb_flankerrawscore"     # TB Flanker RawScore
+    , "tb_listsortrawscore"    # TB ListSort RawScore
+    , "tb_oralrawscore"        # TB Oral RawScore
+    , "tb_patternrawscore"     # TB Pattern RawScore
+    , "tb_picseqrawscore"      # TB PicSeq RawScore
+    , "tb_picvocabrawscore"    # TB PicVocab RawScore
+    , "ipad_tool_box_complete" # TB complete? 
+  )
+
 # Form FVP A1
 fields_u3_raw_fvp_a1 <-
   c(
@@ -197,6 +211,7 @@ fields_u3_raw <- c(fields_u3_raw_header
                    , fields_u3_raw_tvp_a1
                    , fields_u3_raw_ivp_c2
                    , fields_u3_raw_ivp_d1
+                   , fields_u3_raw_ipad_tb
                    , paste0("fu_", fields_u3_raw_ivp_c2)
                    , paste0("fu_", fields_u3_raw_ivp_d1)
                    , paste0("tele_", fields_u3_raw_ivp_d1))
@@ -382,7 +397,9 @@ df_u3_ms_collapse_dx_age <-
 df_u3_ms_collapse_dx_age <- df_u3_ms_collapse_dx_age %>% 
   select(ptid, form_date, age, age_exact, uds_dx,
          sex, race, educ, maristat, handed, county,
-         mocatots, everything()) %>% 
+         mocatots, 
+         tb_date = date, starts_with("tb_"), ipad_tool_box_complete,
+         everything()) %>% 
   select(-redcap_event_name_x, -redcap_event_name_y, 
          -dob, -subject_id, -exam_date)
 ```
