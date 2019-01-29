@@ -22,6 +22,7 @@ library(knitr)
 ```{r}
 # Mostly REDCap API tokens
 source("~/Desktop/config.R")
+source("~/Desktop/helpers.R")
 ```
 
 ```{r}
@@ -50,7 +51,7 @@ collapse_ift_cols <- function(df, col_i) {
   # IVP and FVP (fu_) columns are in df
   else if (!is.null(df[[col_i_quoname]]) &
            !is.null(df[[col_f_quoname]]) &
-            is.null(df[[col_t_quoname]])) {
+           is.null(df[[col_t_quoname]])) {
     df %>%
       mutate(!!col_i_enquo := coalesce(df[[col_i_quoname]],
                                        df[[col_f_quoname]])) %>%
@@ -58,7 +59,7 @@ collapse_ift_cols <- function(df, col_i) {
   } 
   # IVP and TVP (tele_) columns are in df
   else if (!is.null(df[[col_i_quoname]]) &
-            is.null(df[[col_f_quoname]]) &
+           is.null(df[[col_f_quoname]]) &
            !is.null(df[[col_t_quoname]])) {
     df %>%
       mutate(!!col_i_enquo := coalesce(df[[col_i_quoname]],
@@ -92,6 +93,29 @@ fields_u3_raw_ivp_a1 <-
     , "educ"        # ivp_a1: [integer]
     , "maristat"    # ivp_a1
   )
+
+# Form IVP B6
+fields_u3_raw_ivp_b6 <-
+  c(  
+    "nogds"
+    , "satis"
+    , "dropact"
+    , "empty"
+    , "bored"
+    , "spirits"
+    , "afraid"
+    , "happy"
+    , "helpless"
+    , "stayhome"
+    , "memprob"
+    , "wondrful"
+    , "wrthless"
+    , "energy"
+    , "hopeless"
+    , "better"
+    , "gds"
+  )
+
 
 # Form IVP C2
 fields_u3_raw_ivp_c2 <-
@@ -179,15 +203,156 @@ fields_u3_raw_ivp_d1 <-
 # Form Ipad Tool Box
 fields_u3_raw_ipad_tb <- 
   c(
+    # NIH Toolbox
     "date"                     # admin date
-    , "tb_cardsortrawscore"    # TB CardSort RawScore
-    , "tb_flankerrawscore"     # TB Flanker RawScore
-    , "tb_listsortrawscore"    # TB ListSort RawScore
+    # , "tb_cardsortrawscore"    # TB CardSort RawScore
+    # , "tb_flankerrawscore"     # TB Flanker RawScore
+    # , "tb_listsortrawscore"    # TB ListSort RawScore
     # , "tb_oralrawscore"        # TB Oral RawScore
-    , "tb_patternrawscore"     # TB Pattern RawScore
-    , "tb_picseqrawscore"      # TB PicSeq RawScore
+    # , "tb_patternrawscore"     # TB Pattern RawScore
+    # , "tb_picseqrawscore"      # TB PicSeq RawScore
     # , "tb_picvocabrawscore"    # TB PicVocab RawScore
-    # , "ipad_tool_box_complete" # TB complete? 
+    # , "ipad_tool_box_complete" # TB complete?
+    , "tb_cardsortage_corrected_standard_score"
+    , "tb_cardsortcolumn1"
+    , "tb_cardsortcolumn2"
+    , "tb_cardsortcolumn3"
+    , "tb_cardsortcolumn4"
+    , "tb_cardsortcolumn5"
+    , "tb_cardsortcomputed_score"
+    , "tb_cardsortfully_corrected_t_score"
+    , "tb_cardsortinstrumentbreakoff"
+    , "tb_cardsortinstrumentrcreason"
+    , "tb_cardsortinstrumentrcreasonother"
+    , "tb_cardsortinstrumentstatus2"
+    , "tb_cardsortitmcnt"
+    , "tb_cardsortlanguage"
+    , "tb_cardsortnational_percentile_age_adjusted"
+    , "tb_cardsortrawscore"
+    , "tb_cardsortse"
+    , "tb_cardsorttheta"
+    , "tb_cardsorttscore"
+    , "tb_cardsortuncorrected_standard_score"
+    , "tb_flankerage_corrected_standard_score"
+    , "tb_flankercolumn1"
+    , "tb_flankercolumn2"
+    , "tb_flankercolumn3"
+    , "tb_flankercolumn4"
+    , "tb_flankercolumn5"
+    , "tb_flankercomputed_score"
+    , "tb_flankerfully_corrected_t_score"
+    , "tb_flankerinstrumentbreakoff"
+    , "tb_flankerinstrumentrcreason"
+    , "tb_flankerinstrumentrcreasonother"
+    , "tb_flankerinstrumentstatus2"
+    , "tb_flankeritmcnt"
+    , "tb_flankerlanguage"
+    , "tb_flankernational_percentile_age_adjusted"
+    , "tb_flankerrawscore"
+    , "tb_flankerse"
+    , "tb_flankertheta"
+    , "tb_flankertscore"
+    , "tb_flankeruncorrected_standard_score"
+    , "tb_listsortage_corrected_standard_score"
+    , "tb_listsortcolumn1"
+    , "tb_listsortcolumn2"
+    , "tb_listsortcolumn3"
+    , "tb_listsortcolumn4"
+    , "tb_listsortcolumn5"
+    , "tb_listsortcomputed_score"
+    , "tb_listsortfully_corrected_t_score"
+    , "tb_listsortinstrumentbreakoff"
+    , "tb_listsortinstrumentrcreason"
+    , "tb_listsortinstrumentrcreasonother"
+    , "tb_listsortinstrumentstatus2"
+    , "tb_listsortitmcnt"
+    , "tb_listsortlanguage"
+    , "tb_listsortnational_percentile_age_adjusted"
+    , "tb_listsortrawscore"
+    , "tb_listsortse"
+    , "tb_listsorttheta"
+    , "tb_listsorttscore"
+    , "tb_listsortuncorrected_standard_score"
+    , "tb_oralage_corrected_standard_score"
+    , "tb_oralcolumn1"
+    , "tb_oralcolumn2"
+    , "tb_oralcolumn3"
+    , "tb_oralcolumn4"
+    , "tb_oralcolumn5"
+    , "tb_oralcomputed_score"
+    , "tb_oralfully_corrected_t_score"
+    , "tb_oralinstrumentbreakoff"
+    , "tb_oralinstrumentrcreason"
+    , "tb_oralinstrumentrcreasonother"
+    , "tb_oralinstrumentstatus2"
+    , "tb_oralitmcnt"
+    , "tb_orallanguage"
+    , "tb_oralnational_percentile_age_adjusted"
+    , "tb_oralrawscore"
+    , "tb_oralse"
+    , "tb_oraltheta"
+    , "tb_oraltscore"
+    , "tb_oraluncorrected_standard_score"
+    , "tb_patternage_corrected_standard_score"
+    , "tb_patterncolumn1"
+    , "tb_patterncolumn2"
+    , "tb_patterncolumn3"
+    , "tb_patterncolumn4"
+    , "tb_patterncolumn5"
+    , "tb_patterncomputed_score"
+    , "tb_patternfully_corrected_t_score"
+    , "tb_patterninstrumentbreakoff"
+    , "tb_patterninstrumentrcreason"
+    , "tb_patterninstrumentrcreasonother"
+    , "tb_patterninstrumentstatus2"
+    , "tb_patternitmcnt"
+    , "tb_patternlanguage"
+    , "tb_patternnational_percentile_age_adjusted"
+    , "tb_patternrawscore"
+    , "tb_patternse"
+    , "tb_patterntheta"
+    , "tb_patterntscore"
+    , "tb_patternuncorrected_standard_score"
+    , "tb_picseqage_corrected_standard_score"
+    , "tb_picseqcolumn1"
+    , "tb_picseqcolumn2"
+    , "tb_picseqcolumn3"
+    , "tb_picseqcolumn4"
+    , "tb_picseqcolumn5"
+    , "tb_picseqcomputed_score"
+    , "tb_picseqfully_corrected_t_score"
+    , "tb_picseqinstrumentbreakoff"
+    , "tb_picseqinstrumentrcreason"
+    , "tb_picseqinstrumentrcreasonother"
+    , "tb_picseqinstrumentstatus2"
+    , "tb_picseqitmcnt"
+    , "tb_picseqlanguage"
+    , "tb_picseqnational_percentile_age_adjusted"
+    , "tb_picseqrawscore"
+    , "tb_picseqse"
+    , "tb_picseqtheta"
+    , "tb_picseqtscore"
+    , "tb_picsequncorrected_standard_score"
+    , "tb_picvocabage_corrected_standard_score"
+    , "tb_picvocabcolumn1"
+    , "tb_picvocabcolumn2"
+    , "tb_picvocabcolumn3"
+    , "tb_picvocabcolumn4"
+    , "tb_picvocabcolumn5"
+    , "tb_picvocabcomputed_score"
+    , "tb_picvocabfully_corrected_t_score"
+    , "tb_picvocabinstrumentbreakoff"
+    , "tb_picvocabinstrumentrcreason"
+    , "tb_picvocabinstrumentrcreasonother"
+    , "tb_picvocabinstrumentstatus2"
+    , "tb_picvocabitmcnt"
+    , "tb_picvocablanguage"
+    , "tb_picvocabnational_percentile_age_adjusted"
+    , "tb_picvocabrawscore"
+    , "tb_picvocabse"
+    , "tb_picvocabtheta"
+    , "tb_picvocabtscore"
+    , "tb_picvocabuncorrected_standard_score"
   )
 
 # Form FVP A1
@@ -209,9 +374,11 @@ fields_u3_raw <- c(fields_u3_raw_header
                    , fields_u3_raw_ivp_a1
                    , fields_u3_raw_fvp_a1
                    , fields_u3_raw_tvp_a1
+                   , fields_u3_raw_ivp_b6
                    , fields_u3_raw_ivp_c2
                    , fields_u3_raw_ivp_d1
                    , fields_u3_raw_ipad_tb
+                   , paste0("fu_", fields_u3_raw_ivp_b6)
                    , paste0("fu_", fields_u3_raw_ivp_c2)
                    , paste0("fu_", fields_u3_raw_ivp_d1)
                    , paste0("tele_", fields_u3_raw_ivp_d1))
@@ -244,7 +411,7 @@ JSON => data.frame => tibble
 ### UDS 3
 ```{r}
 json_u3 <- rc_api_get(uri    = REDCAP_API_URI,
-                      token  = REDCAP_API_TOKEN_UDS3,
+                      token  = REDCAP_API_TOKEN_UDS3n,
                       fields = fields_u3,
                       raw    = TRUE)
 df_u3 <- jsonlite::fromJSON(json_u3) %>% as_tibble() %>% na_if("")
@@ -384,6 +551,7 @@ df_u3_collapsed <- df_u3
 
 # Define which fields have "fu_" and "tele_" counterparts
 ift_fields_collapsible <- c("sex", "maristat", 
+                            fields_u3_raw_ivp_b6,
                             fields_u3_raw_ivp_c2,
                             fields_u3_raw_ivp_d1)
 
@@ -423,12 +591,12 @@ df_u3_collapsed_dx <- df_u3_collapsed %>%
 ```
 
 ## Derive Age at Visit Date
- 
+
 ### UDS 3
 ```{r}
 df_u3_collapsed_dx_age <- df_u3_collapsed_dx %>% 
   mutate(age_exact = as.period(interval(start = dob, end = form_date), 
-                         unit = "years"),
+                               unit = "years"),
          age = as.period(interval(dob, form_date),
                          unit = "years")$year)
 ```
@@ -441,15 +609,15 @@ The MiNDSet Registry data has the participants' counties, so we have to a quick 
 ### UDS 3 + MiNDSet Registry
 ```{r}
 df_u3_ms_collapse_dx_age <-
- FuzzyDateJoin::outer_left(x = df_u3_collapsed_dx_age,
-                           y = df_ms,
-                           x_id_col = "ptid", 
-                           y_id_col = "subject_id",
-                           x_date_col = "form_date",
-                           y_date_col = "exam_date",
-                           x_intvl_less = 365L,
-                           x_intvl_more = 365L,
-                           keep_y_id = TRUE)
+  FuzzyDateJoin::outer_left(x = df_u3_collapsed_dx_age,
+                            y = df_ms,
+                            x_id_col = "ptid", 
+                            y_id_col = "subject_id",
+                            x_date_col = "form_date",
+                            y_date_col = "exam_date",
+                            x_intvl_less = 365L,
+                            x_intvl_more = 365L,
+                            keep_y_id = TRUE)
 ```
 
 ### Reorder Columns
